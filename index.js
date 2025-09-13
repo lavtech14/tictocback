@@ -117,14 +117,14 @@ io.on("connection", (socket) => {
 app.get("/", (req, res) => {
   res.send("Server is up and running!");
 });
-// Serve React static files in production
-if (process.env.NODE_ENV === "production") {
-  app.use(express.static(path.join(__dirname, "tictoc/build")));
+// // Serve React static files in production
+// if (process.env.NODE_ENV === "production") {
+//   app.use(express.static(path.join(__dirname, "tictoc/build")));
 
-  app.get("*", (req, res) => {
-    res.sendFile(path.resolve(__dirname, "tictoc", "build", "index.html"));
-  });
-}
+//   app.get("*", (req, res) => {
+//     res.sendFile(path.resolve(__dirname, "tictoc", "build", "index.html"));
+//   });
+// }
 
 // Start server
 server.listen(PORT, () => {
