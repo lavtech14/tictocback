@@ -114,6 +114,9 @@ io.on("connection", (socket) => {
   });
 });
 
+app.get("/", (req, res) => {
+  res.send("Server is up and running!");
+});
 // Serve React static files in production
 if (process.env.NODE_ENV === "production") {
   app.use(express.static(path.join(__dirname, "tictoc/build")));
