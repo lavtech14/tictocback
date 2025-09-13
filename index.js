@@ -10,7 +10,10 @@ const server = http.createServer(app);
 // Socket.io setup
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000", // Frontend URL for dev only
+    origin: [
+      "http://localhost:3000", // for local development
+      "https://tictocfront.vercel.app", // your deployed frontend
+    ], // Frontend URL for dev only
     methods: ["GET", "POST"],
   },
 });
