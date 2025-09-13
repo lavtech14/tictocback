@@ -2,7 +2,6 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
-const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
@@ -11,9 +10,9 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: [
-      "http://localhost:3000", // for local development
-      "https://tictocfront.vercel.app", // your deployed frontend
-    ], // Frontend URL for dev only
+      "http://localhost:3000", // local frontend
+      "https://tictocfront.vercel.app", // deployed frontend
+    ],
     methods: ["GET", "POST"],
   },
 });
@@ -23,27 +22,30 @@ app.use(cors());
 const PORT = process.env.PORT || 5000;
 
 // In-memory room store
-const rooms = {}; // roomId: { players: [socketId], board: [], xIsNext: true }
+// roomId: { players: [socketId], board: [], xIsNext: true, size: 3 or 10 }
+const rooms = {};
 
 io.on("connection", (socket) => {
   console.log("📡 New connection:", socket.id);
 
-  // Join room
-  socket.on("join-room", (roomId) => {
-    console.log(`➡️  ${socket.id} trying to join room ${roomId}`);
+  // Join a room (with board size)
+  socket.on("join-room", ({ roomId, size }) => {
+    console.log(
+      `➡️ ${socket.id} attempting to join room ${roomId} (size: ${size})`
+    );
 
     if (!rooms[roomId]) {
       rooms[roomId] = {
         players: [],
-        board: Array(9).fill(null),
+        board: Array(size * size).fill(null),
         xIsNext: true,
+        size,
       };
     }
 
     const room = rooms[roomId];
 
     if (room.players.length >= 2) {
-      console.log(`🚫 Room ${roomId} is full.`);
       socket.emit("room-full");
       return;
     }
@@ -54,18 +56,19 @@ io.on("connection", (socket) => {
       console.log(`✅ ${socket.id} joined room ${roomId}`);
     }
 
-    // Send room data to clients
+    // Send room data
     io.to(roomId).emit("room-data", {
       players: room.players,
       board: room.board,
       xIsNext: room.xIsNext,
+      size: room.size,
     });
   });
 
   // Handle move
   socket.on("make-move", ({ roomId, index }) => {
     const room = rooms[roomId];
-    if (!room || room.players.length < 2 || room.board[index]) return;
+    if (!room || room.board[index] || room.players.length < 2) return;
 
     const symbol = room.xIsNext ? "X" : "O";
     room.board[index] = symbol;
@@ -82,7 +85,7 @@ io.on("connection", (socket) => {
     const room = rooms[roomId];
     if (!room) return;
 
-    room.board = Array(9).fill(null);
+    room.board = Array(room.size * room.size).fill(null);
     room.xIsNext = true;
 
     io.to(roomId).emit("move-made", {
@@ -103,30 +106,24 @@ io.on("connection", (socket) => {
         delete rooms[roomId];
         console.log(`🧹 Deleted empty room ${roomId}`);
       } else {
-        // Update remaining player(s)
         io.to(roomId).emit("room-data", {
           players: room.players,
           board: room.board,
           xIsNext: room.xIsNext,
+          size: room.size,
         });
       }
     }
   });
 });
 
+// Simple health check
 app.get("/", (req, res) => {
-  res.send("Server is up and running!");
+  res.send("🟢 TicTacToe Server is running!");
 });
-// // Serve React static files in production
-// if (process.env.NODE_ENV === "production") {
-//   app.use(express.static(path.join(__dirname, "tictoc/build")));
-
-//   app.get("*", (req, res) => {
-//     res.sendFile(path.resolve(__dirname, "tictoc", "build", "index.html"));
-//   });
-// }
 
 // Start server
 server.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
 });
+nod;
