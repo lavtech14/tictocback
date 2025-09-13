@@ -2,31 +2,33 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const cors = require("cors");
+const path = require("path");
 
 const app = express();
 const server = http.createServer(app);
 
+// Socket.io setup
 const io = new Server(server, {
   cors: {
-    origin: "http://localhost:3000", // Change to your frontend URL in production
+    origin: "http://localhost:3000", // Frontend URL for dev only
     methods: ["GET", "POST"],
   },
 });
 
 app.use(cors());
 
-const PORT = 5000;
+const PORT = process.env.PORT || 5000;
 
-// Store room state
-let rooms = {}; // roomId: { players: [socket.id], board: [], xIsNext: true }
+// In-memory room store
+const rooms = {}; // roomId: { players: [socketId], board: [], xIsNext: true }
 
 io.on("connection", (socket) => {
-  console.log("New connection:", socket.id);
+  console.log("📡 New connection:", socket.id);
 
+  // Join room
   socket.on("join-room", (roomId) => {
-    console.log(`Socket ${socket.id} attempting to join ${roomId}`);
+    console.log(`➡️  ${socket.id} trying to join room ${roomId}`);
 
-    // Create room if it doesn't exist
     if (!rooms[roomId]) {
       rooms[roomId] = {
         players: [],
@@ -37,20 +39,19 @@ io.on("connection", (socket) => {
 
     const room = rooms[roomId];
 
-    // Prevent more than 2 players
     if (room.players.length >= 2) {
+      console.log(`🚫 Room ${roomId} is full.`);
       socket.emit("room-full");
       return;
     }
 
-    // Add player if not already in room
     if (!room.players.includes(socket.id)) {
       room.players.push(socket.id);
       socket.join(roomId);
-      console.log(`${socket.id} joined room ${roomId}`);
+      console.log(`✅ ${socket.id} joined room ${roomId}`);
     }
 
-    // Send room data to all players in room
+    // Send room data to clients
     io.to(roomId).emit("room-data", {
       players: room.players,
       board: room.board,
@@ -58,10 +59,10 @@ io.on("connection", (socket) => {
     });
   });
 
+  // Handle move
   socket.on("make-move", ({ roomId, index }) => {
     const room = rooms[roomId];
-    if (!room) return;
-    if (room.board[index] || room.players.length < 2) return;
+    if (!room || room.players.length < 2 || room.board[index]) return;
 
     const symbol = room.xIsNext ? "X" : "O";
     room.board[index] = symbol;
@@ -73,6 +74,7 @@ io.on("connection", (socket) => {
     });
   });
 
+  // Reset game
   socket.on("reset-game", (roomId) => {
     const room = rooms[roomId];
     if (!room) return;
@@ -86,20 +88,19 @@ io.on("connection", (socket) => {
     });
   });
 
+  // Handle disconnect
   socket.on("disconnect", () => {
-    console.log("Disconnected:", socket.id);
+    console.log("❌ Disconnected:", socket.id);
 
-    // Remove player from rooms
-    for (let roomId in rooms) {
+    for (const roomId in rooms) {
       const room = rooms[roomId];
       room.players = room.players.filter((id) => id !== socket.id);
 
-      // If room is empty, delete it
       if (room.players.length === 0) {
         delete rooms[roomId];
-        console.log(`Room ${roomId} deleted`);
+        console.log(`🧹 Deleted empty room ${roomId}`);
       } else {
-        // Notify remaining player(s)
+        // Update remaining player(s)
         io.to(roomId).emit("room-data", {
           players: room.players,
           board: room.board,
@@ -110,6 +111,16 @@ io.on("connection", (socket) => {
   });
 });
 
+// Serve React static files in production
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "tictoc/build")));
+
+  app.get("*", (req, res) => {
+    res.sendFile(path.resolve(__dirname, "tictoc", "build", "index.html"));
+  });
+}
+
+// Start server
 server.listen(PORT, () => {
-  console.log(`✅ Server running on http://localhost:${PORT}`);
+  console.log(`✅ Server running on port ${PORT}`);
 });
